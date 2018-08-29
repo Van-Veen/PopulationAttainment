@@ -13,14 +13,23 @@ library(magrittr)
 # 8. Add benchmark rates
 # DONE. Add All groupings and calculations
 # DONE. Add hispanic/latinx grouping
+# 11. Download national PUMS data 
+# 12. Write workflow for prepping national rates
+# 13. Incorporate national average line
 
 # The three functions below are used to calculate population attainment. In the end, the heavy lifting is done by the
 # 'add_education' function, which incorporates the other two functions internally. We'll use this function to loop 
 # through an array of file paths to process and calculate attainment for multiple years of PUMS data
 
-prep_df = function(fp){
+
+
+prep_df = function(fp, needs_construction = F){
   
-  DF = fread(fp)
+  if(needs_construction == T){
+    DF = construct_year(fp)
+  }else{
+    DF = fread(fp)
+  }
   
   DF = DF[, COHORT := ifelse(AGEP >= 25 & AGEP <= 64, 1, 0)]
   DF = DF[ , DEGREE := ifelse(SCHL %in% c(20:24), 1, 0)]
@@ -62,8 +71,9 @@ prep_df = function(fp){
   
 }
 
-process_rates = function(fp, year){
-  DF = prep_df(fp)
+process_rates = function(fp, year, needs_construction = F){
+  
+  DF = prep_df(fp, needs_construction)
   
   ALL = DF[COHORT == 1, wtd.table(DEGREE, weights = PWGTP)] %>% 
     prop.table(.) %>% 
@@ -104,9 +114,9 @@ process_rates = function(fp, year){
   
 }
 
-add_education = function(fp, year){
+add_education = function(fp, year, needs_construction = F){
   
-  DF = prep_df(fp)
+  DF = prep_df(fp, needs_construction)
   
   ALL = DF[COHORT == 1, wtd.table(EDUCATION, weights = PWGTP)] %>% 
     data.table(.) %>% 
@@ -223,7 +233,7 @@ add_education = function(fp, year){
   ED_RATES = rbind(ALL, FEMALE, MALE, AMIND, ASIAN, BLACK, MTO, PI, WHITE, HISP, NOT_HISP,AGE1824, AGE2534, AGE3544, AGE4554, AGE5564) %>% 
     .[, V2 := as.character(V2)]
   
-  RATES = process_rates(fp, year) %>% .[, V2 := as.character(V2)]
+  RATES = process_rates(fp, year, needs_construction) %>% .[, V2 := as.character(V2)]
   
   FINAL = merge(RATES, ED_RATES, by = c("V1", "V2"), all = T)
   
